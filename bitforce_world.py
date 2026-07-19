@@ -178,31 +178,48 @@ else:
 
 st.write("---")
 
-# Projection Analysis Block - LOCKED TO INITIAL BASE AMOUNT
+# Projection Analysis Block - FIXED & ENFORCING THE $10 BLOCK CONDITION
 st.subheader("🔮 Theoretical Compounding Map (If 0% Withdrawal Maintained From Start)")
-st.caption(f"Fixed Map Base Calculation Level Set On Initial Entry: **${st.session_state.initial_investment:.2f}**")
+st.caption(f"Fixed Map Base Calculation Level Set On Initial Entry: **${st.session_state.initial_investment:.2f}** (Support balance only compounds when it accumulates to $10+)")
 
 days_list = [10, 15, 20, 25, 30, 35, 40]
 pct_list = [15, 30, 50, 75, 100, 150, 200]
 
 proj_data = []
 temp_cap = st.session_state.initial_investment
+virtual_support_wallet = 0.0
 
 for i in range(7):
     p_prof = (temp_cap * pct_list[i]) / 100
     m_70 = p_prof * 0.70
     s_30 = p_prof * 0.30
-    nxt = temp_cap + p_prof
+    
+    # Virtual support wallet gets its 30% allocation
+    virtual_support_wallet += s_30
+    
+    # 70% goes straight to Main, and the initial active capital returns
+    next_reinvest_pool = temp_cap + m_70
+    
+    # Check if support wallet hit the strict $10 threshold limit
+    support_release = 0
+    if virtual_support_wallet >= 10.0:
+        support_release = int(virtual_support_wallet)
+        virtual_support_wallet = virtual_support_wallet - support_release
+        
+    # The absolute next target base
+    nxt = next_reinvest_pool + support_release
+    
     proj_data.append({
         "Cycle Stage": cycle_names[i],
         "Duration": f"{days_list[i]} Days",
         "ROI": f"{pct_list[i]}%",
         "Expected Profit": f"${p_prof:.2f}",
         "Main Allocation": f"${m_70:.2f}",
-        "Support Allocation": f"${s_30:.2f}",
+        "Support Allocation (Current Cycle)": f"${s_30:.2f}",
+        "Support Vault Roll over Balance": f"${virtual_support_wallet:.2f}",
         "Perfect Reinvest Target": f"${int(nxt)}"
     })
-    temp_cap = nxt
+    temp_cap = float(int(nxt)) # Re-invest operates on rounded amounts
 
 df_proj = pd.DataFrame(proj_data)
 st.table(df_proj.set_index("Cycle Stage"))
