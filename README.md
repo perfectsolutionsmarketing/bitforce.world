@@ -18,7 +18,9 @@ This project is built using Python and Streamlit.
 Make sure you have Python installed on your local machine.
 
 ### Installation
-1. Clone the repository:
-   ```bash
-   git clone [https://github.com/perfectsolutionsmarketing/bitforce.world.git](https://github.com/perfectsolutionsmarketing/bitforce.world.git)
-   cd bitforce.world
+
+1. Copy the repository URL from [Bitforce World Repository](https://github.com/perfectsolutionsmarketing/bitforce.world.git) and clone it:
+
+```bash
+git clone [https://github.com/perfectsolutionsmarketing/bitforce.world.git](https://github.com/perfectsolutionsmarketing/bitforce.world.git)
+cd bitforce.world
