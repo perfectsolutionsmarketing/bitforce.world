@@ -265,7 +265,7 @@ if st.session_state.history:
     # Format the columns nicely
     df_display = df_history.copy()
     df_display["Profit Generated"] = df_display["Profit Generated"].map(lambda x: f"${x:.2f}")
-    df_display["Withdrawal (Main)"] = df_display["Withdrawal (Main)].map(lambda x: f"${x:.2f}")
+    df_display["Withdrawal (Main)"] = df_display["Withdrawal (Main)"].map(lambda x: f"${x:.2f}")
     df_display["Support Auto Re-Invest"] = df_display["Support Auto Re-Invest"].map(lambda x: f"${x:.0f}")
     
     st.dataframe(df_display.set_index("Cycle"), use_container_width=True)
