@@ -35,6 +35,8 @@ if "history" not in st.session_state:
     st.session_state.history = []
 if "current_cycle_idx" not in st.session_state:
     st.session_state.current_cycle_idx = 0
+if "workflow_status" not in st.session_state:
+    st.session_state.workflow_status = ""
 
 cycle_names = ["1st Cycle", "2nd Cycle", "3rd Cycle", "4th Cycle", "5th Cycle", "6th Cycle", "7th Cycle"]
 cycle_options = [10, 15, 20, 25, 30, 35, 40]
@@ -95,6 +97,7 @@ with st.sidebar:
                 "Status": "Profit Distributed"
             })
             st.session_state.current_cycle_idx += 1
+            st.session_state.workflow_status = "awaiting_settlement"
             st.rerun()
 
     st.write("---")
@@ -143,6 +146,7 @@ with st.sidebar:
             st.session_state.history[-1]["Support Auto Re-Invest"] = float(support_round_reinvest)
             st.session_state.history[-1]["Status"] = "Settled & Compound Re-routed"
             
+        st.session_state.workflow_status = "settled_done"
         st.rerun()
 
     if st.button("🧹 Reset Whole Lifecycle"):
@@ -152,6 +156,13 @@ with st.sidebar:
 
 # ==================== MAIN DASHBOARD DISPLAY (Right Side) ====================
 st.markdown("<h2 class='custom-header'>📈 Bitforce Live Ledger Engine</h2>", unsafe_allow_html=True)
+
+# Smart Workflow Visual Prompt / Message Alert
+if st.session_state.workflow_status == "awaiting_settlement":
+    st.info("💡 **Next Step Needed:** Aapne profit process kar liya hai. Agar aap withdraw karna chahte hain to left side se amount bharein, nahi to seedhe **'🔄 Execute Settlements'** button par click karein taaki aapka naya active investment load ho sake!")
+elif st.session_state.workflow_status == "settled_done":
+    st.success("✅ **Settlement Complete:** Aapka agla cycle naye capital ke saath shuru hone ke liye taiyar hai!")
+    st.session_state.workflow_status = "" # Flash message clear
 
 # Top Bar Metrics Grid
 col_m1, col_m2, col_m3 = st.columns(3)
@@ -178,48 +189,48 @@ else:
 
 st.write("---")
 
-# Projection Analysis Block - FIXED & ENFORCING THE $10 BLOCK CONDITION
+# Projection Analysis Block - EXACT MATCHING WITH LIVE LOGIC
 st.subheader("🔮 Theoretical Compounding Map (If 0% Withdrawal Maintained From Start)")
-st.caption(f"Fixed Map Base Calculation Level Set On Initial Entry: **${st.session_state.initial_investment:.2f}** (Support balance only compounds when it accumulates to $10+)")
+st.caption(f"Fixed Map Base Calculation Level Set On Initial Entry: **${st.session_state.initial_investment:.2f}** (Calculated with identical decimal carry-overs as the live engine)")
 
 days_list = [10, 15, 20, 25, 30, 35, 40]
 pct_list = [15, 30, 50, 75, 100, 150, 200]
 
 proj_data = []
 temp_cap = st.session_state.initial_investment
+virtual_main_wallet = 0.0
 virtual_support_wallet = 0.0
 
 for i in range(7):
     p_prof = (temp_cap * pct_list[i]) / 100
-    m_70 = p_prof * 0.70
-    s_30 = p_prof * 0.30
+    m_share = temp_cap + (p_prof * 0.70)
+    s_share = p_prof * 0.30
     
-    # Virtual support wallet gets its 30% allocation
-    virtual_support_wallet += s_30
+    virtual_main_wallet += m_share
+    virtual_support_wallet += s_share
     
-    # 70% goes straight to Main, and the initial active capital returns
-    next_reinvest_pool = temp_cap + m_70
+    # Perform strict settlement emulation (Identical to Execute Settlements button)
+    main_round = int(virtual_main_wallet)
+    virtual_main_wallet = virtual_main_wallet - main_round
     
-    # Check if support wallet hit the strict $10 threshold limit
-    support_release = 0
+    support_round = 0
     if virtual_support_wallet >= 10.0:
-        support_release = int(virtual_support_wallet)
-        virtual_support_wallet = virtual_support_wallet - support_release
+        support_round = int(virtual_support_wallet)
+        virtual_support_wallet = virtual_support_wallet - support_round
         
-    # The absolute next target base
-    nxt = next_reinvest_pool + support_release
+    nxt_investment = float(main_round + support_round)
     
     proj_data.append({
         "Cycle Stage": cycle_names[i],
         "Duration": f"{days_list[i]} Days",
         "ROI": f"{pct_list[i]}%",
         "Expected Profit": f"${p_prof:.2f}",
-        "Main Allocation": f"${m_70:.2f}",
-        "Support Allocation (Current Cycle)": f"${s_30:.2f}",
-        "Support Vault Roll over Balance": f"${virtual_support_wallet:.2f}",
-        "Perfect Reinvest Target": f"${int(nxt)}"
+        "Main Share (Post Cycle)": f"${m_share:.2f}",
+        "Support Share (Post Cycle)": f"${s_share:.2f}",
+        "Support Rollover Bal": f"${virtual_support_wallet:.2f}",
+        "Perfect Reinvest Target": f"${int(nxt_investment)}"
     })
-    temp_cap = float(int(nxt)) # Re-invest operates on rounded amounts
+    temp_cap = nxt_investment
 
 df_proj = pd.DataFrame(proj_data)
 st.table(df_proj.set_index("Cycle Stage"))
