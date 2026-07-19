@@ -277,7 +277,7 @@ if st.session_state.history:
             st.warning(
                 f"**Aapne abhi tak total `${st.session_state.total_withdrawn:.2f}` ka withdrawal kiya hai.**\n\n"
                 f"Is withdrawal ki wajah se aapka compounding base chota ho gaya hai:\n"
-                f"* 🎯 **Maximum Target (agar $0 withdraw karte):** `${int(max_theoretical_target)}` tak pahunchta.\n"
+                f"* 🎯 **Maximum Target (agar $ 0  withdraw karte): * `${int(max_theoretical_target)}` tak pahunchta.\n"
                 f"* 📉 **Compounding Loss:** Aapne lagbhag `${int(potential_difference)}` ka extra profit miss kiya hai."
             )
         else:
