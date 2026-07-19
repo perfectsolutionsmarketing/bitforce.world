@@ -25,6 +25,8 @@ st.markdown("""
 # Session State Initialize
 if "investment" not in st.session_state:
     st.session_state.investment = 100.0
+if "initial_investment" not in st.session_state:
+    st.session_state.initial_investment = 100.0
 if "main_wallet" not in st.session_state:
     st.session_state.main_wallet = 0.0
 if "support_wallet" not in st.session_state:
@@ -59,6 +61,10 @@ with st.sidebar:
         step=10.0,
     )
     
+    # Lock the first initial investment amount for theoretical calculation map
+    if st.session_state.current_cycle_idx == 0:
+        st.session_state.initial_investment = inv_value
+    
     selected_cycle = st.selectbox("Select Cycle Duration (Days)", options=cycle_options, index=min(st.session_state.current_cycle_idx, 6))
     
     # Process Button
@@ -85,7 +91,7 @@ with st.sidebar:
                 "Interest": f"{interest_rate}%",
                 "Profit Generated": profit,
                 "Withdrawal (Main)": 0.0,
-                "Withdrawal (Support)": 0.0,
+                "Support Auto Re-Invest": 0.0,
                 "Status": "Profit Distributed"
             })
             st.session_state.current_cycle_idx += 1
@@ -94,47 +100,47 @@ with st.sidebar:
     st.write("---")
     st.header("💸 Actions: Pay Out / Reinvest")
     
-    # Main Wallet Withdrawal
+    # Main Wallet Withdrawal (Allows full precision input)
     max_m_w = st.session_state.main_wallet
-    main_withdraw_amt = st.number_input("Withdraw from Main Wallet ($)", min_value=0.0, max_value=float(max_m_w), value=0.0)
+    main_withdraw_amt = st.number_input("Withdraw from Main Wallet ($)", min_value=0.0, max_value=float(max_m_w), value=0.0, step=0.01)
     
-    # Support Wallet Withdrawal
+    # Support Wallet Info Display
     support_avail = st.session_state.support_wallet
-    support_withdraw_amt = 0.0
     if support_avail >= 10.0:
-        max_s_w = int(support_avail)
-        support_withdraw_amt = st.number_input("Withdraw from Support ($ Round)", min_value=0, max_value=max_s_w, value=0)
+        st.success(f"Support Base holds ${support_avail:.2f}. Perfect! It will be Auto Round Re-invested.")
     else:
-        st.caption("🔒 Support wallet locked (< $10)")
+        st.caption(f"🔒 Support Re-investment locked (Currently ${support_avail:.2f}, needs $10)")
         
     if st.button("🔄 Execute Settlements"):
-        # Calculate Remaining
+        # 1. Main Wallet Calculation
         main_left = st.session_state.main_wallet - main_withdraw_amt
-        m_round = int(main_left)
-        m_dec = main_left - m_round
+        main_round_reinvest = int(main_left)       # Round number for investment
+        main_decimal_backup = main_left - main_round_reinvest # Decimals remain safe
         
-        sup_left = st.session_state.support_wallet - float(support_withdraw_amt)
-        s_reinvest = 0
-        if sup_left >= 10.0:
-            s_reinvest = int(sup_left)
-            sup_left = sup_left - s_reinvest
+        # 2. Support Wallet Calculation (Only triggers if balance >= 10)
+        support_round_reinvest = 0
+        support_left = support_avail
+        
+        if support_avail >= 10.0:
+            support_round_reinvest = int(support_avail)
+            support_left = support_avail - support_round_reinvest # Decimals remain safe
             
-        # Update session states
-        st.session_state.investment = float(m_round + s_reinvest)
-        st.session_state.main_wallet = m_dec
-        st.session_state.support_wallet = sup_left
+        # 3. Compile Total Round Capital for New Re-Investment
+        st.session_state.investment = float(main_round_reinvest + support_round_reinvest)
+        
+        # Save updated decimal fragments back to system wallets
+        st.session_state.main_wallet = main_decimal_backup
+        st.session_state.support_wallet = support_left
         
         # Calculate compound loss warning message if withdrawal happened
-        total_withdrawn = main_withdraw_amt + support_withdraw_amt
-        if total_withdrawn > 0:
-            # Simple 7-cycle potential projection calculation for alert
-            projected_loss = total_withdrawn * 2.5 
-            st.session_state.last_warning = f"⚠️ Alert: Apne ${total_withdrawn:.2f} withdraw kiya. Agar ye asset system me rehta toh compounding ke sath 7th cycle tak aap ka lagbhag ${projected_loss:.2f} extra profit ban sakta tha!"
+        if main_withdraw_amt > 0:
+            projected_loss = main_withdraw_amt * 2.5 
+            st.session_state.last_warning = f"⚠️ Alert: Apne Main Wallet se ${main_withdraw_amt:.2f} withdraw kiya. Agar ye amount system me compound hota to 7th cycle tak aap lagbhag ${projected_loss:.2f} extra earn kar sakte the!"
         
-        # Update last history log status to show settlement changes
+        # Update last history logs
         if st.session_state.history:
             st.session_state.history[-1]["Withdrawal (Main)"] = main_withdraw_amt
-            st.session_state.history[-1]["Withdrawal (Support)"] = support_withdraw_amt
+            st.session_state.history[-1]["Support Auto Re-Invest"] = float(support_round_reinvest)
             st.session_state.history[-1]["Status"] = "Settled & Compound Re-routed"
             
         st.rerun()
@@ -172,14 +178,15 @@ else:
 
 st.write("---")
 
-# Projection Analysis Block
+# Projection Analysis Block - LOCKED TO INITIAL BASE AMOUNT
 st.subheader("🔮 Theoretical Compounding Map (If 0% Withdrawal Maintained From Start)")
+st.caption(f"Fixed Map Base Calculation Level Set On Initial Entry: **${st.session_state.initial_investment:.2f}**")
+
 days_list = [10, 15, 20, 25, 30, 35, 40]
 pct_list = [15, 30, 50, 75, 100, 150, 200]
 
-base_calc = inv_value if inv_value >= 20 else 100.0
 proj_data = []
-temp_cap = base_calc
+temp_cap = st.session_state.initial_investment
 
 for i in range(7):
     p_prof = (temp_cap * pct_list[i]) / 100
