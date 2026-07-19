@@ -103,9 +103,15 @@ with st.sidebar:
     st.write("---")
     st.header("💸 Actions: Pay Out / Reinvest")
     
-    # Main Wallet Withdrawal (Allows full precision input)
+    # Smart Guard: Enable withdrawal only if cycle has processed profit but settlement hasn't closed it yet
+    is_withdrawal_disabled = st.session_state.workflow_status != "awaiting_settlement"
     max_m_w = st.session_state.main_wallet
-    main_withdraw_amt = st.number_input("Withdraw from Main Wallet ($)", min_value=0.0, max_value=float(max_m_w), value=0.0, step=0.01)
+    
+    if is_withdrawal_disabled and st.session_state.current_cycle_idx > 0:
+        st.error("🔒 Re-investment locked! Naye cycle ka amount set ho chuka hai. Withdrawal ab agle cycle ke close hone par hi open hoga.")
+        main_withdraw_amt = st.number_input("Withdraw from Main Wallet ($)", min_value=0.0, value=0.0, disabled=True)
+    else:
+        main_withdraw_amt = st.number_input("Withdraw from Main Wallet ($)", min_value=0.0, max_value=float(max_m_w), value=0.0, step=0.01)
     
     # Support Wallet Info Display
     support_avail = st.session_state.support_wallet
@@ -114,7 +120,8 @@ with st.sidebar:
     else:
         st.caption(f"🔒 Support Re-investment locked (Currently ${support_avail:.2f}, needs $10)")
         
-    if st.button("🔄 Execute Settlements"):
+    # Execute Settlements Button control
+    if st.button("🔄 Execute Settlements", disabled=is_withdrawal_disabled if st.session_state.current_cycle_idx > 0 else False):
         # 1. Main Wallet Calculation
         main_left = st.session_state.main_wallet - main_withdraw_amt
         main_round_reinvest = int(main_left)       # Round number for investment
