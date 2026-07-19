@@ -37,6 +37,8 @@ if "current_cycle_idx" not in st.session_state:
     st.session_state.current_cycle_idx = 0
 if "workflow_status" not in st.session_state:
     st.session_state.workflow_status = ""
+if "total_withdrawn" not in st.session_state:
+    st.session_state.total_withdrawn = 0.0
 
 cycle_names = ["1st Cycle", "2nd Cycle", "3rd Cycle", "4th Cycle", "5th Cycle", "6th Cycle", "7th Cycle"]
 cycle_options = [10, 15, 20, 25, 30, 35, 40]
@@ -138,14 +140,12 @@ with st.sidebar:
         # 3. Compile Total Round Capital for New Re-Investment
         st.session_state.investment = float(main_round_reinvest + support_round_reinvest)
         
+        # Track historical global total withdrawals
+        st.session_state.total_withdrawn += main_withdraw_amt
+        
         # Save updated decimal fragments back to system wallets
         st.session_state.main_wallet = main_decimal_backup
         st.session_state.support_wallet = support_left
-        
-        # Calculate compound loss warning message if withdrawal happened
-        if main_withdraw_amt > 0:
-            projected_loss = main_withdraw_amt * 2.5 
-            st.session_state.last_warning = f"⚠️ Alert: Apne Main Wallet se ${main_withdraw_amt:.2f} withdraw kiya. Agar ye amount system me compound hota to 7th cycle tak aap lagbhag ${projected_loss:.2f} extra earn kar sakte the!"
         
         # Update last history logs
         if st.session_state.history:
@@ -171,35 +171,20 @@ elif st.session_state.workflow_status == "settled_done":
     st.success("✅ **Settlement Complete:** Aapka agla cycle naye capital ke saath shuru hone ke liye taiyar hai!")
     st.session_state.workflow_status = "" # Flash message clear
 
-# Top Bar Metrics Grid
-col_m1, col_m2, col_m3 = st.columns(3)
+# Top Bar Metrics Grid (4 Column Layout to include total withdrawals)
+col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 with col_m1:
     st.metric("💼 Active Capital Base", f"${st.session_state.investment:.2f}")
 with col_m2:
     st.metric("💰 Main Wallet Core Balance", f"${st.session_state.main_wallet:.2f}")
 with col_m3:
     st.metric("🛡️ Support Wallet Rolling Base", f"${st.session_state.support_wallet:.2f}")
-
-if "last_warning" in st.session_state and st.session_state.last_warning:
-    st.warning(st.session_state.last_warning)
-    st.session_state.last_warning = "" # Clear after one flash
-
-st.write("---")
-
-# Dynamic Current Flow Sheet Table
-st.subheader("📋 Active Lifecycle Statement (Live Steps Track)")
-if st.session_state.history:
-    df_history = pd.DataFrame(st.session_state.history)
-    st.dataframe(df_history.set_index("Cycle"), use_container_width=True)
-else:
-    st.info("Pehle Left Sidebar se 'Complete Cycle & Process Profit' par click karein. Jaise-jaise aap aage badhenge, aapka real-time custom workflow yahan load hoga.")
+with col_m4:
+    st.metric("💸 Total Withdrawn Amount", f"${st.session_state.total_withdrawn:.2f}")
 
 st.write("---")
 
 # Projection Analysis Block - EXACT MATCHING WITH LIVE LOGIC
-st.subheader("🔮 Theoretical Compounding Map (If 0% Withdrawal Maintained From Start)")
-st.caption(f"Fixed Map Base Calculation Level Set On Initial Entry: **${st.session_state.initial_investment:.2f}** (Calculated with identical decimal carry-overs as the live engine)")
-
 days_list = [10, 15, 20, 25, 30, 35, 40]
 pct_list = [15, 30, 50, 75, 100, 150, 200]
 
@@ -216,7 +201,7 @@ for i in range(7):
     virtual_main_wallet += m_share
     virtual_support_wallet += s_share
     
-    # Perform strict settlement emulation (Identical to Execute Settlements button)
+    # Perform strict settlement emulation
     main_round = int(virtual_main_wallet)
     virtual_main_wallet = virtual_main_wallet - main_round
     
@@ -235,9 +220,76 @@ for i in range(7):
         "Main Share (Post Cycle)": f"${m_share:.2f}",
         "Support Share (Post Cycle)": f"${s_share:.2f}",
         "Support Rollover Bal": f"${virtual_support_wallet:.2f}",
-        "Perfect Reinvest Target": f"${int(nxt_investment)}"
+        "Perfect Reinvest Target": nxt_investment
     })
     temp_cap = nxt_investment
 
+# Dynamic Impact Message Builder
+max_theoretical_target = proj_data[-1]["Perfect Reinvest Target"]
+
+# Calculate what the current live progression will reach if no more withdrawals occur
+live_history_len = len(st.session_state.history)
+current_live_investment = st.session_state.investment
+
+# Run virtual engine starting from the user's CURRENT actual investment to the 7th cycle
+simulated_cap = current_live_investment
+sim_main_wallet = st.session_state.main_wallet
+sim_support_wallet = st.session_state.support_wallet
+
+for idx in range(live_history_len, 7):
+    p_prof = (simulated_cap * pct_list[idx]) / 100
+    m_share = simulated_cap + (p_prof * 0.70)
+    s_share = p_prof * 0.30
+    
+    sim_main_wallet += m_share
+    sim_support_wallet += s_share
+    
+    m_round = int(sim_main_wallet)
+    sim_main_wallet = sim_main_wallet - m_round
+    
+    s_round = 0
+    if sim_support_wallet >= 10.0:
+        s_round = int(sim_support_wallet)
+        sim_support_wallet = sim_support_wallet - s_round
+        
+    simulated_cap = float(m_round + s_round)
+
+# The total loss is: (Theoretical Maximum if 0 withdrawals) - (Current Live Path Target + What was already taken)
+potential_difference = max_theoretical_target - (simulated_cap + st.session_state.total_withdrawn)
+
+# Dynamic Current Flow Sheet Table
+st.subheader("📋 Active Lifecycle Statement (Live Steps Track)")
+if st.session_state.history:
+    df_history = pd.DataFrame(st.session_state.history)
+    
+    # Format the columns nicely
+    df_display = df_history.copy()
+    df_display["Profit Generated"] = df_display["Profit Generated"].map(lambda x: f"${x:.2f}")
+    df_display["Withdrawal (Main)"] = df_display["Withdrawal (Main)].map(lambda x: f"${x:.2f}")
+    df_display["Support Auto Re-Invest"] = df_display["Support Auto Re-Invest"].map(lambda x: f"${x:.0f}")
+    
+    st.dataframe(df_display.set_index("Cycle"), use_container_width=True)
+    
+    # Impact statement message layout triggered by any withdrawal records
+    if st.session_state.total_withdrawn > 0:
+        st.markdown("### ⚠️ Compounding Opportunity Loss Report")
+        if potential_difference > 0:
+            st.error(f"**Aapne abhi tak total ${st.session_state.total_withdrawn:.2f} ka withdrawal kiya hai.**\n\n"
+                     f"📉 Is withdrawal ki wajah se aapka compounding base chota ho gaya hai. Agar aapne shuruat se **$0** withdrawal rakha hota, "
+                     f"to 7th Cycle ke end mein aapka final amount **${int(max_theoretical_target)}** hota. Aapki is withdrawal ke chalte aapne "
+                     f"lagbhag **${int(potential_difference)}** ka extra compounding profit chhod diya hai!")
+        else:
+            st.info("Aapka lifecycle statement bilkul track par hai.")
+else:
+    st.info("Pehle Left Sidebar se 'Complete Cycle & Process Profit' par click karein. Jaise-jaise aap aage badhenge, aapka real-time custom workflow yahan load hoga.")
+
+st.write("---")
+
+# Projection Analysis Block
+st.subheader("🔮 Theoretical Compounding Map (If 0% Withdrawal Maintained From Start)")
+st.caption(f"Fixed Map Base Calculation Level Set On Initial Entry: **${st.session_state.initial_investment:.2f}** (Calculated with identical decimal carry-overs as the live engine)")
+
+# Adapt array presentation formatting for the view
 df_proj = pd.DataFrame(proj_data)
+df_proj["Perfect Reinvest Target"] = df_proj["Perfect Reinvest Target"].map(lambda x: f"${int(x)}")
 st.table(df_proj.set_index("Cycle Stage"))
