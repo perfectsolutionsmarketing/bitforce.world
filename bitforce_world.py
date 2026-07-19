@@ -18,13 +18,13 @@ if "support_wallet" not in st.session_state:
 # 1. Input Section
 st.header("1. New / Active Investment")
 
-# Agar pehle se koi reinvested amount hai toh wo default value ban jayegi
+# Default value agar pehle se bacha balance hai toh wo dikhega, nahi toh minimum 20.0 set rahega
+default_inv = float(st.session_state.investment) if st.session_state.investment > 0 else 20.0
+
 inv_value = st.number_input(
     "Investment Value ($)",
     min_value=0.0,
-    value=float(st.session_state.investment)
-    if st.session_state.investment > 0
-    else 100.0,
+    value=default_inv,
     step=10.0,
 )
 
@@ -36,25 +36,29 @@ selected_cycle = st.selectbox("Select Cycle (Days)", options=cycle_options)
 
 # 2. Calculate Cycle Completion
 if st.button("Complete Cycle & Process Profit"):
-    st.session_state.investment = inv_value
-    interest_rate = interest_map[selected_cycle]
+    # Rule 1: Min invest value 20 ho, kam hone par error
+    if inv_value < 20.0:
+        st.error("❌ Error: Minimum Investment Value must be $20 or more.")
+    else:
+        st.session_state.investment = inv_value
+        interest_rate = interest_map[selected_cycle]
 
-    # Profit Calculation
-    total_profit = (st.session_state.investment * interest_rate) / 100
+        # Profit Calculation
+        total_profit = (st.session_state.investment * interest_rate) / 100
 
-    # Wallet Splitting Logic
-    # Main Wallet = Principal + 70% of Profit
-    main_wallet_share = st.session_state.investment + (total_profit * 0.70)
+        # Wallet Splitting Logic
+        # Main Wallet = Principal + 70% of Profit
+        main_wallet_share = st.session_state.investment + (total_profit * 0.70)
 
-    # Support Wallet = 30% of Profit + Purana bacha hua Support Balance
-    new_support_share = total_profit * 0.30
-    st.session_state.support_wallet += new_support_share
+        # Support Wallet = 30% of Profit
+        new_support_share = total_profit * 0.30
+        st.session_state.support_wallet += new_support_share
 
-    st.session_state.main_wallet += main_wallet_share
+        st.session_state.main_wallet += main_wallet_share
 
-    st.success(
-        f"🎉 {selected_cycle} Days Cycle Completed! Profit generated: {interest_rate}%"
-    )
+        st.success(
+            f"🎉 {selected_cycle} Days Cycle Completed! Profit generated: {interest_rate}%"
+        )
 
 st.write("---")
 
@@ -64,13 +68,13 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.metric(
-        label="Main Wallet (Principal + 70% Profit)",
+        label="Main Wallet Balance",
         value=f"${st.session_state.main_wallet:.2f}",
     )
 
 with col2:
     st.metric(
-        label="Support Wallet (30% Profit)",
+        label="Support Wallet Balance",
         value=f"${st.session_state.support_wallet:.2f}",
     )
 
@@ -90,16 +94,14 @@ main_withdraw_amt = st.number_input(
 )
 
 # Support Wallet Withdrawal Calculation
-# Support se sirf tabhi nikalega jab > 10 ho, aur sirf Round (Integer) amount niklega.
 support_available = st.session_state.support_wallet
 can_withdraw_support = support_available >= 10.0
 support_withdraw_amt = 0.0
 
 if can_withdraw_support:
-    # Sirf integer/round part withdraw ke liye allow karenge
     max_support_withdraw = int(support_available)
     st.info(
-        f"Support wallet has more than $10. You can withdraw up to ${max_support_withdraw} (Round Amount Only)."
+        f"Support wallet has ${support_available:.2f}. You can withdraw up to ${max_support_withdraw} (Round Amount Only)."
     )
     support_withdraw_amt = st.number_input(
         "Amount to Withdraw from Support Wallet ($)",
@@ -115,29 +117,39 @@ else:
 
 
 if st.button("Process Withdrawal & Re-invest Balance"):
-    # Main Wallet Process
+    # 1. Main Wallet Process
     main_balance_left = st.session_state.main_wallet - main_withdraw_amt
+    
+    # Rule 2: Main wallet se sirf round amount invest hoga, decimal bacha rahega
+    main_round_invest = int(main_balance_left) # Integer part jo reinvest hoga
+    main_decimal_left = main_balance_left - main_round_invest # Decimal part jo wallet me rahega
 
-    # Support Wallet Process
-    # Decimal value automatic balance mein reh jayegi kyunki hum total se sirf selected round amount minus kar rahe hain
-    support_balance_left = st.session_state.support_wallet - float(
-        support_withdraw_amt
-    )
+    # 2. Support Wallet Process
+    # User ke withdraw karne ke baad jo balance support me bacha
+    support_balance_left = st.session_state.support_wallet - float(support_withdraw_amt)
+    
+    support_reinvest_amt = 0
+    # Rule 3: Agar support balance bacha hua >= 10 hai, toh uska round part automatic investment me chala jaye
+    if support_balance_left >= 10.0:
+        support_reinvest_amt = int(support_balance_left)
+        support_balance_left = support_balance_left - support_reinvest_amt # Bacha hua decimal part ya fragment
 
-    # Remaining balances ko hi next Investment value bana diya
-    st.session_state.investment = main_balance_left
+    # Total Next Investment = Main Ka Round Part + Support Ka Reinvest hone wala Round Part
+    st.session_state.investment = float(main_round_invest + support_reinvest_amt)
+    
+    # Wallets me sirf bache huye decimals/balances chod diye
+    st.session_state.main_wallet = main_decimal_left
     st.session_state.support_wallet = support_balance_left
 
-    # Reset Main wallet since its balance moved to Investment
-    st.session_state.main_wallet = 0.0
-
-    st.success("Withdrawal Processed Successfully!")
-    st.info(
-        f"New Active Investment Value for next cycle: ${st.session_state.investment:.2f}"
-    )
-    st.info(
-        f"Support Wallet Rolling Balance (with Decimals): ${st.session_state.support_wallet:.2f}"
-    )
+    st.success("Withdrawal & Re-investment Processed Successfully!")
+    
+    # Live stats user ko dikhane ke liye
+    st.info(f"New Active Investment Value: ${st.session_state.investment:.2f}")
+    if support_reinvest_amt > 0:
+        st.caption(f"Note: Included ${support_reinvest_amt} automatically from Support Wallet (Balance was >= $10)")
+        
+    st.info(f"Main Wallet Rolling Balance (Decimals): ${st.session_state.main_wallet:.2f}")
+    st.info(f"Support Wallet Rolling Balance (Decimals): ${st.session_state.support_wallet:.2f}")
 
     # Refresh page to update values
     st.rerun()
