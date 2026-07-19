@@ -254,7 +254,7 @@ for idx in range(live_history_len, 7):
         
     simulated_cap = float(m_round + s_round)
 
-# The total loss is: (Theoretical Maximum if 0 withdrawals) - (Current Live Path Target + What was already taken)
+# The total loss calculation logic
 potential_difference = max_theoretical_target - (simulated_cap + st.session_state.total_withdrawn)
 
 # Dynamic Current Flow Sheet Table
@@ -270,14 +270,16 @@ if st.session_state.history:
     
     st.dataframe(df_display.set_index("Cycle"), use_container_width=True)
     
-    # Impact statement message layout triggered by any withdrawal records
+    # CLEAN & DYNMIC ANALYSIS DISPLAY
     if st.session_state.total_withdrawn > 0:
         st.markdown("### ⚠️ Compounding Opportunity Loss Report")
         if potential_difference > 0:
-            st.error(f"**Aapne abhi tak total ${st.session_state.total_withdrawn:.2f} ka withdrawal kiya hai.**\n\n"
-                     f"📉 Is withdrawal ki wajah se aapka compounding base chota ho gaya hai. Agar aapne shuruat se **$0** withdrawal rakha hota, "
-                     f"to 7th Cycle ke end mein aapka final amount **${int(max_theoretical_target)}** hota. Aapki is withdrawal ke chalte aapne "
-                     f"lagbhag **${int(potential_difference)}** ka extra compounding profit chhod diya hai!")
+            st.warning(
+                f"**Aapne abhi tak total `${st.session_state.total_withdrawn:.2f}` ka withdrawal kiya hai.**\n\n"
+                f"Is withdrawal ki wajah se aapka compounding base chota ho gaya hai:\n"
+                f"* 🎯 **Maximum Target (agar $0 withdraw karte):** `${int(max_theoretical_target)}` tak pahunchta.\n"
+                f"* 📉 **Compounding Loss:** Aapne lagbhag `${int(potential_difference)}` ka extra profit miss kiya hai."
+            )
         else:
             st.info("Aapka lifecycle statement bilkul track par hai.")
 else:
