@@ -2,210 +2,200 @@ import streamlit as st
 import os
 import pandas as pd
 
-# Page Configuration
-st.set_page_config(page_title="Bitforce Investment Portal", layout="centered")
+# Page Config with Dark/Professional styling hints
+st.set_page_config(page_title="Bitforce Dashboard", layout="wide")
 
-# 0. Logo Section - Size fixed to 300px and centered
-if os.path.exists("logo.png"):
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-    with col_l2:
-        st.image("logo.png", width=300)
-else:
-    st.title("💼 Bitforce Investment Portal")
-
-st.write("---")
+# Custom CSS for premium card container design
+st.markdown("""
+    <style>
+    .metric-card {
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 5px solid #ff4b4b;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+    }
+    .custom-header {
+        color: #1E3A8A;
+        font-weight: bold;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # Session State Initialize
 if "investment" not in st.session_state:
-    st.session_state.investment = 0.0
+    st.session_state.investment = 100.0
 if "main_wallet" not in st.session_state:
     st.session_state.main_wallet = 0.0
 if "support_wallet" not in st.session_state:
     st.session_state.support_wallet = 0.0
+if "history" not in st.session_state:
+    st.session_state.history = []
+if "current_cycle_idx" not in st.session_state:
+    st.session_state.current_cycle_idx = 0
 
-# 1. Input Section
-st.header("1. New / Active Investment")
-
-default_inv = float(st.session_state.investment) if st.session_state.investment > 0 else 100.0
-
-inv_value = st.number_input(
-    "Investment Value ($)",
-    min_value=0.0,
-    value=default_inv,
-    step=10.0,
-)
-
+cycle_names = ["1st Cycle", "2nd Cycle", "3rd Cycle", "4th Cycle", "5th Cycle", "6th Cycle", "7th Cycle"]
 cycle_options = [10, 15, 20, 25, 30, 35, 40]
 interest_map = {10: 15, 15: 30, 20: 50, 25: 75, 30: 100, 35: 150, 40: 200}
-cycle_names = ["1st Cycle", "2nd Cycle", "3rd Cycle", "4th Cycle", "5th Cycle", "6th Cycle", "7th Cycle"]
 
-selected_cycle = st.selectbox("Select Cycle (Days)", options=cycle_options)
-
-# 2. Calculate Cycle Completion
-if st.button("Complete Cycle & Process Profit"):
-    if inv_value < 20.0:
-        st.error("❌ Error: Minimum Investment Value must be $20 or more.")
+# ==================== SIDEBAR LAYOUT (Left Side) ====================
+with st.sidebar:
+    if os.path.exists("logo.png"):
+        st.image("logo.png", use_container_width=True)
     else:
-        st.session_state.investment = inv_value
-        interest_rate = interest_map[selected_cycle]
-
-        total_profit = (st.session_state.investment * interest_rate) / 100
-
-        main_wallet_share = st.session_state.investment + (total_profit * 0.70)
-        new_support_share = total_profit * 0.30
-        
-        st.session_state.support_wallet += new_support_share
-        st.session_state.main_wallet += main_wallet_share
-
-        st.success(f"🎉 {selected_cycle} Days Cycle Completed! Profit generated: {interest_rate}%")
-
-st.write("---")
-
-# 3. Wallet Dashboard Display
-st.header("📊 Wallet Balances")
-col1, col2 = st.columns(2)
-
-with col1:
-    st.metric(
-        label="Main Wallet Balance",
-        value=f"${st.session_state.main_wallet:.2f}",
-    )
-
-with col2:
-    st.metric(
-        label="Support Wallet Balance",
-        value=f"${st.session_state.support_wallet:.2f}",
-    )
-
-st.write("---")
-
-# 4. Withdrawal & Re-investment Section
-st.header("💸 Withdrawal & Re-investment")
-
-max_main_withdraw = st.session_state.main_wallet
-main_withdraw_amt = st.number_input(
-    "Amount to Withdraw from Main Wallet ($)",
-    min_value=0.0,
-    max_value=float(max_main_withdraw),
-    value=0.0,
-    step=1.0,
-)
-
-support_available = st.session_state.support_wallet
-can_withdraw_support = support_available >= 10.0
-support_withdraw_amt = 0.0
-
-if can_withdraw_support:
-    max_support_withdraw = int(support_available)
-    st.info(f"Support wallet has ${support_available:.2f}. You can withdraw up to ${max_support_withdraw} (Round Amount Only).")
-    support_withdraw_amt = st.number_input(
-        "Amount to Withdraw from Support Wallet ($)",
-        min_value=0,
-        max_value=max_support_withdraw,
-        value=0,
-        step=1,
-    )
-else:
-    st.warning("Support Wallet balance is less than $10. Withdrawal locked for this wallet.")
-
-
-if st.button("Process Withdrawal & Re-invest Balance"):
-    main_balance_left = st.session_state.main_wallet - main_withdraw_amt
-    main_round_invest = int(main_balance_left) 
-    main_decimal_left = main_balance_left - main_round_invest 
-
-    support_balance_left = st.session_state.support_wallet - float(support_withdraw_amt)
+        st.title("💼 Bitforce")
     
-    support_reinvest_amt = 0
-    if support_balance_left >= 10.0:
-        support_reinvest_amt = int(support_balance_left)
-        support_balance_left = support_balance_left - support_reinvest_amt 
+    st.write("---")
+    st.header("⚙️ Operations Panel")
+    
+    # Current active state indicators
+    current_cycle_name = cycle_names[min(st.session_state.current_cycle_idx, 6)]
+    st.subheader(f"📍 Active: {current_cycle_name}")
+    
+    inv_value = st.number_input(
+        "Active Investment ($)",
+        min_value=0.0,
+        value=float(st.session_state.investment),
+        step=10.0,
+    )
+    
+    selected_cycle = st.selectbox("Select Cycle Duration (Days)", options=cycle_options, index=min(st.session_state.current_cycle_idx, 6))
+    
+    # Process Button
+    if st.button("🚀 Process & Close Active Cycle"):
+        if inv_value < 20.0:
+            st.error("Minimum Investment is $20.")
+        elif st.session_state.current_cycle_idx >= 7:
+            st.warning("All 7 cycles completed! Please reset to start fresh.")
+        else:
+            interest_rate = interest_map[selected_cycle]
+            profit = (inv_value * interest_rate) / 100
+            
+            main_share = inv_value + (profit * 0.70)
+            support_share = profit * 0.30
+            
+            st.session_state.main_wallet += main_share
+            st.session_state.support_wallet += support_share
+            
+            # Log initial step without withdrawal
+            st.session_state.history.append({
+                "Cycle": current_cycle_name,
+                "Invested": inv_value,
+                "Days": f"{selected_cycle} Days",
+                "Interest": f"{interest_rate}%",
+                "Profit Generated": profit,
+                "Withdrawal (Main)": 0.0,
+                "Withdrawal (Support)": 0.0,
+                "Status": "Profit Distributed"
+            })
+            st.session_state.current_cycle_idx += 1
+            st.rerun()
 
-    st.session_state.investment = float(main_round_invest + support_reinvest_amt)
-    st.session_state.main_wallet = main_decimal_left
-    st.session_state.support_wallet = support_balance_left
+    st.write("---")
+    st.header("💸 Actions: Pay Out / Reinvest")
+    
+    # Main Wallet Withdrawal
+    max_m_w = st.session_state.main_wallet
+    main_withdraw_amt = st.number_input("Withdraw from Main Wallet ($)", min_value=0.0, max_value=float(max_m_w), value=0.0)
+    
+    # Support Wallet Withdrawal
+    support_avail = st.session_state.support_wallet
+    support_withdraw_amt = 0.0
+    if support_avail >= 10.0:
+        max_s_w = int(support_avail)
+        support_withdraw_amt = st.number_input("Withdraw from Support ($ Round)", min_value=0, max_value=max_s_w, value=0)
+    else:
+        st.caption("🔒 Support wallet locked (< $10)")
+        
+    if st.button("🔄 Execute Settlements"):
+        # Calculate Remaining
+        main_left = st.session_state.main_wallet - main_withdraw_amt
+        m_round = int(main_left)
+        m_dec = main_left - m_round
+        
+        sup_left = st.session_state.support_wallet - float(support_withdraw_amt)
+        s_reinvest = 0
+        if sup_left >= 10.0:
+            s_reinvest = int(sup_left)
+            sup_left = sup_left - s_reinvest
+            
+        # Update session states
+        st.session_state.investment = float(m_round + s_reinvest)
+        st.session_state.main_wallet = m_dec
+        st.session_state.support_wallet = sup_left
+        
+        # Calculate compound loss warning message if withdrawal happened
+        total_withdrawn = main_withdraw_amt + support_withdraw_amt
+        if total_withdrawn > 0:
+            # Simple 7-cycle potential projection calculation for alert
+            projected_loss = total_withdrawn * 2.5 
+            st.session_state.last_warning = f"⚠️ Alert: Apne ${total_withdrawn:.2f} withdraw kiya. Agar ye asset system me rehta toh compounding ke sath 7th cycle tak aap ka lagbhag ${projected_loss:.2f} extra profit ban sakta tha!"
+        
+        # Update last history log status to show settlement changes
+        if st.session_state.history:
+            st.session_state.history[-1]["Withdrawal (Main)"] = main_withdraw_amt
+            st.session_state.history[-1]["Withdrawal (Support)"] = support_withdraw_amt
+            st.session_state.history[-1]["Status"] = "Settled & Compound Re-routed"
+            
+        st.rerun()
 
-    st.success("Withdrawal & Re-investment Processed Successfully!")
-    st.rerun()
+    if st.button("🧹 Reset Whole Lifecycle"):
+        st.session_state.clear()
+        st.rerun()
+
+
+# ==================== MAIN DASHBOARD DISPLAY (Right Side) ====================
+st.markdown("<h2 class='custom-header'>📈 Bitforce Live Ledger Engine</h2>", unsafe_allow_html=True)
+
+# Top Bar Metrics Grid
+col_m1, col_m2, col_m3 = st.columns(3)
+with col_m1:
+    st.metric("💼 Active Capital Base", f"${st.session_state.investment:.2f}")
+with col_m2:
+    st.metric("💰 Main Wallet Core Balance", f"${st.session_state.main_wallet:.2f}")
+with col_m3:
+    st.metric("🛡️ Support Wallet Rolling Base", f"${st.session_state.support_wallet:.2f}")
+
+if "last_warning" in st.session_state and st.session_state.last_warning:
+    st.warning(st.session_state.last_warning)
+    st.session_state.last_warning = "" # Clear after one flash
 
 st.write("---")
 
-# 5. Dynamic Bitforce Investment Projection Sheets
-st.header("📋 Bitforce Investment Plan Projections")
-st.caption(f"Based on current input value: **${inv_value:.2f}**")
+# Dynamic Current Flow Sheet Table
+st.subheader("📋 Active Lifecycle Statement (Live Steps Track)")
+if st.session_state.history:
+    df_history = pd.DataFrame(st.session_state.history)
+    st.dataframe(df_history.set_index("Cycle"), use_container_width=True)
+else:
+    st.info("Pehle Left Sidebar se 'Complete Cycle & Process Profit' par click karein. Jaise-jaise aap aage badhenge, aapka real-time custom workflow yahan load hoga.")
 
-# --- DATA GENERATION FOR TABLES ---
+st.write("---")
+
+# Projection Analysis Block
+st.subheader("🔮 Theoretical Compounding Map (If 0% Withdrawal Maintained From Start)")
 days_list = [10, 15, 20, 25, 30, 35, 40]
 pct_list = [15, 30, 50, 75, 100, 150, 200]
 
-# Scenario A: 100% Compounding (0% Withdrawal)
-data_a = []
-current_principal_a = inv_value
-for i in range(7):
-    day = days_list[i]
-    pct = pct_list[i]
-    profit = (current_principal_a * pct) / 100
-    main_70 = profit * 0.70
-    e_wallet_30 = profit * 0.30
-    
-    # Next Re-invest is Principal + Total Profit (since 0% withdrawal)
-    next_reinvest = current_principal_a + profit
-    
-    data_a.append({
-        "Cycle": cycle_names[i],
-        "Days": f"{day} Days",
-        "Interest": f"{pct}%",
-        "Profits": f"${profit:.2f}",
-        "Main Wallet (70%)": f"${main_70:.2f}",
-        "E-Wallet (30%)": f"${e_wallet_30:.2f}",
-        "Re-Invest": f"${int(next_reinvest)}"
-    })
-    current_principal_a = next_reinvest
-
-df_a = pd.DataFrame(data_a)
-
-# Scenario B: 30% Support Wallet Compounding Only (70% Main Wallet Withdrawn)
-data_b = []
-current_principal_b = inv_value
-total_net_withdrawal = 0.0
+base_calc = inv_value if inv_value >= 20 else 100.0
+proj_data = []
+temp_cap = base_calc
 
 for i in range(7):
-    day = days_list[i]
-    pct = pct_list[i]
-    profit = (current_principal_b * pct) / 100
-    main_70 = profit * 0.70
-    e_wallet_30 = profit * 0.30
-    
-    # 70% of profit + principal is taken out, only 30% support wallet is reinvested
-    next_reinvest = current_principal_b + e_wallet_30
-    total_net_withdrawal += main_70
-    
-    data_b.append({
-        "Cycle": cycle_names[i],
-        "Days": f"{day} Days",
-        "Interest": f"{pct}%",
-        "Profits": f"${profit:.2f}",
-        "Main Wallet (70%)": f"${main_70:.2f}",
-        "E-Wallet (30%)": f"${e_wallet_30:.2f}",
-        "Re-Invest": f"${int(next_reinvest)}"
+    p_prof = (temp_cap * pct_list[i]) / 100
+    m_70 = p_prof * 0.70
+    s_30 = p_prof * 0.30
+    nxt = temp_cap + p_prof
+    proj_data.append({
+        "Cycle Stage": cycle_names[i],
+        "Duration": f"{days_list[i]} Days",
+        "ROI": f"{pct_list[i]}%",
+        "Expected Profit": f"${p_prof:.2f}",
+        "Main Allocation": f"${m_70:.2f}",
+        "Support Allocation": f"${s_30:.2f}",
+        "Perfect Reinvest Target": f"${int(nxt)}"
     })
-    current_principal_b = next_reinvest
+    temp_cap = nxt
 
-df_b = pd.DataFrame(data_b)
-
-# --- DISPLAY SHEET 1 ---
-st.subheader("🔴 Incase When 0% Withdrawal and Compounding All Profit & Principal")
-st.table(df_a.set_index("Cycle"))
-st.metric(label="Net Compounded Value at 7th Cycle", value=f"${int(current_principal_a)}")
-
-st.write("---")
-
-# --- DISPLAY SHEET 2 ---
-st.subheader("🔵 Incase when you invested only 30% of Support (E) Wallet")
-st.table(df_b.set_index("Cycle"))
-
-col_b1, col_b2 = st.columns(2)
-with col_b1:
-    st.metric(label="Total Net Withdrawal (70% Part)", value=f"${total_net_withdrawal:.2f}")
-with col_b2:
-    st.metric(label="Final Invested Value at 7th Cycle", value=f"${int(current_principal_b)}")
+df_proj = pd.DataFrame(proj_data)
+st.table(df_proj.set_index("Cycle Stage"))
