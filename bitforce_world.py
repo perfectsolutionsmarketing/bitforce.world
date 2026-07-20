@@ -58,26 +58,36 @@ with st.sidebar:
     current_cycle_name = cycle_names[min(st.session_state.current_cycle_idx, 6)]
     st.subheader(f"📍 Active: {current_cycle_name}")
     
+    # Dynamic Minimum Requirement (Last Deposit / Base Requirement)
+    required_min_deposit = max(20.0, float(st.session_state.investment))
+    
     inv_value = st.number_input(
         "Active Investment ($)",
-        min_value=0.0,
+        min_value=20.0,
         value=float(st.session_state.investment),
         step=10.0,
     )
     
+    # Visual warning if entered investment is lower than required threshold
+    if inv_value < required_min_deposit:
+        st.error(f"⛔ Naya deposit pichle deposit (${required_min_deposit:,.2f}) se kam nahi ho sakta!")
+
     # Lock the first initial investment amount for theoretical calculation map
     if st.session_state.current_cycle_idx == 0:
         st.session_state.initial_investment = inv_value
     
     selected_cycle = st.selectbox("Select Cycle Duration (Days)", options=cycle_options, index=min(st.session_state.current_cycle_idx, 6))
     
-    # Process Button
+    # Process Button with strict condition check
     if st.button("🚀 Process & Close Active Cycle"):
-        if inv_value < 20.0:
-            st.error("Minimum Investment is $20.")
+        if inv_value < required_min_deposit:
+            st.error(f"🚫 Cycle aage nahi badh sakti! Aapko kam se kam ${required_min_deposit:,.2f} ya usse zyada deposit karna hoga.")
         elif st.session_state.current_cycle_idx >= 7:
             st.warning("All 7 cycles completed! Please reset to start fresh.")
         else:
+            # Save updated investment base
+            st.session_state.investment = inv_value
+            
             interest_rate = interest_map[selected_cycle]
             profit = (inv_value * interest_rate) / 100
             
@@ -121,7 +131,7 @@ with st.sidebar:
             if main_withdraw_amt >= max_m_w:
                 st.warning("⚠️ **Poora balance nikal rahe hain!** Settlement execute karne par aapka account reset ho jayega aur cycle 10 Days se dobara shuru hoga.")
             elif main_withdraw_amt >= last_deposit:
-                st.warning(f"⚠️ **Caution:** Aap last deposit (${last_deposit:,.2f}) se zyada withdraw kar rahe hain. Isse agla active capital deposit amount se kam ho jayega.")
+                st.warning(f"⚠️ **Caution:** Aap last deposit (${last_deposit:,.2f}) se zyada withdraw kar rahe hain. Agle cycle mein aapko Kam se Kam purna deposit amount daalna padega.")
 
     # Support Wallet Info Display
     support_avail = st.session_state.support_wallet
