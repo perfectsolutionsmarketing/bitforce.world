@@ -114,7 +114,15 @@ with st.sidebar:
         main_withdraw_amt = st.number_input("Withdraw from Main Wallet ($)", min_value=0.0, value=0.0, disabled=True)
     else:
         main_withdraw_amt = st.number_input("Withdraw from Main Wallet ($)", min_value=0.0, max_value=float(max_m_w), value=0.0, step=0.01)
-    
+
+        # Dynamic warning logic for withdrawal relative to last deposit
+        if main_withdraw_amt > 0:
+            last_deposit = st.session_state.investment
+            if main_withdraw_amt >= max_m_w:
+                st.warning("⚠️ **Poora balance nikal rahe hain!** Settlement execute karne par aapka account reset ho jayega aur cycle 10 Days se dobara shuru hoga.")
+            elif main_withdraw_amt >= last_deposit:
+                st.warning(f"⚠️ **Caution:** Aap last deposit (${last_deposit:,.2f}) se zyada withdraw kar rahe hain. Isse agla active capital deposit amount se kam ho jayega.")
+
     # Support Wallet Info Display
     support_avail = st.session_state.support_wallet
     if support_avail >= 10.0:
@@ -126,6 +134,13 @@ with st.sidebar:
     if st.button("🔄 Execute Settlements", disabled=is_withdrawal_disabled if st.session_state.current_cycle_idx > 0 else False):
         # 1. Main Wallet Calculation
         main_left = st.session_state.main_wallet - main_withdraw_amt
+        
+        # Check if entire balance is withdrawn (Full Cashout Reset Rule)
+        if main_left < 1.0 and support_avail < 10.0:
+            st.session_state.clear()
+            st.session_state.workflow_status = "full_reset_done"
+            st.rerun()
+
         main_round_reinvest = int(main_left)       # Round number for investment
         main_decimal_backup = main_left - main_round_reinvest # Decimals remain safe
         
@@ -170,6 +185,9 @@ if st.session_state.workflow_status == "awaiting_settlement":
 elif st.session_state.workflow_status == "settled_done":
     st.success("✅ **Settlement Complete:** Aapka agla cycle naye capital ke saath shuru hone ke liye taiyar hai!")
     st.session_state.workflow_status = "" # Flash message clear
+elif st.session_state.workflow_status == "full_reset_done":
+    st.warning("🔄 **Account Reset:** Poora balance withdraw karne ki wajah se lifecycle restart ho gayi hai. Naya journey 10 Days cycle se shuru karein.")
+    st.session_state.workflow_status = ""
 
 # Top Bar Metrics Grid (4 Column Layout to include total withdrawals)
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
